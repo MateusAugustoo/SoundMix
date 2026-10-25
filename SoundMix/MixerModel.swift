@@ -14,10 +14,23 @@ struct MixScene: Identifiable {
     let id: String
     let name: String
     let subtitle: String
-    let description: String
     let symbol: String
     let tint: Color
-    let masterVolume: Double
+}
+
+struct SceneAppChoice: Codable, Identifiable, Hashable {
+    let id: String
+    let name: String
+}
+
+struct SceneSettings: Codable {
+    var masterVolume: Double
+    var otherAppsVolume: Double
+    var featuredApps: [SceneAppChoice]
+
+    func volume(for appID: String) -> Double {
+        featuredApps.contains(where: { $0.id == appID }) ? 100 : otherAppsVolume
+    }
 }
 
 final class MixerModel: ObservableObject {
@@ -35,18 +48,30 @@ final class MixerModel: ObservableObject {
     @Published private(set) var outputs: [AudioOutput] = []
     @Published private(set) var outputSelectionError: String?
     @Published var selectedSceneID: String?
+    @Published private(set) var sceneError: String?
     @Published private(set) var apps: [AudioApplication] = []
     @Published private(set) var appVolumes: [String: Double] = [:]
     @Published private(set) var appErrors: [String: String] = [:]
+    @Published private(set) var sceneSettings: [String: SceneSettings] = [:]
     private var previousAppVolumes: [String: Double] = [:]
+    private var sceneBaseline: (outputID: String, masterVolume: Double, muted: Bool, appVolumes: [String: Double])?
+    private let sceneSettingsKey = "sceneSettings.v1"
 
     let scenes: [MixScene] = [
-        .init(id: "focus", name: "Foco", subtitle: "Tudo no seu ritmo", description: "Volume geral equilibrado para trabalhar.", symbol: "sparkles", tint: .purple, masterVolume: 64),
-        .init(id: "meeting", name: "Reunião", subtitle: "Vozes em primeiro plano", description: "Volume geral para acompanhar chamadas.", symbol: "headphones", tint: .blue, masterVolume: 72),
-        .init(id: "relax", name: "Descanso", subtitle: "Um momento para você", description: "Volume geral mais suave.", symbol: "waveform", tint: .orange, masterVolume: 38)
+        .init(id: "focus", name: "Foco", subtitle: "Menos distrações", symbol: "sparkles", tint: .purple),
+        .init(id: "meeting", name: "Reunião", subtitle: "Chamadas em destaque", symbol: "headphones", tint: .blue),
+        .init(id: "relax", name: "Descanso", subtitle: "Som mais suave", symbol: "waveform", tint: .orange)
     ]
 
     init() {
+        let defaults: [String: SceneSettings] = [
+            "focus": .init(masterVolume: 64, otherAppsVolume: 65, featuredApps: []),
+            "meeting": .init(masterVolume: 72, otherAppsVolume: 35, featuredApps: []),
+            "relax": .init(masterVolume: 38, otherAppsVolume: 80, featuredApps: [])
+        ]
+        let saved = UserDefaults.standard.data(forKey: sceneSettingsKey)
+            .flatMap { try? JSONDecoder().decode([String: SceneSettings].self, from: $0) } ?? [:]
+        sceneSettings = defaults.merging(saved) { _, saved in saved }
         systemOutput.onChange = { [weak self] snapshot in
             self?.applyOutputSnapshot(snapshot)
         }
@@ -90,8 +115,8 @@ final class MixerModel: ObservableObject {
             get: { self.masterVolume },
             set: { value in
                 guard self.canControlMasterVolume else { return }
+                self.deactivateScene()
                 _ = self.systemOutput.setVolume(value)
-                self.selectedSceneID = nil
             }
         )
     }
@@ -108,45 +133,134 @@ final class MixerModel: ObservableObject {
         setAppVolume(current < 0.5 ? (previousAppVolumes[appID] ?? 100) : 0, for: appID)
     }
 
-    private func setAppVolume(_ value: Double, for appID: String) {
-        guard let app = apps.first(where: { $0.id == appID }), outputConnected else { return }
+    @discardableResult
+    private func setAppVolume(_ value: Double, for appID: String, preserveScene: Bool = false) -> Bool {
+        guard let app = apps.first(where: { $0.id == appID }), outputConnected else { return false }
+        if !preserveScene { deactivateScene() }
         let volume = min(max(value, 0), 100)
         let previous = appVolumes[appID] ?? 100
         appVolumes[appID] = volume
+        let succeeded: Bool
         do {
             try appAudio.setVolume(volume, for: app, outputDeviceID: AudioObjectID(UInt32(selectedOutputID) ?? 0))
             if volume > 0.5 { previousAppVolumes[appID] = volume }
             appErrors.removeValue(forKey: appID)
+            succeeded = true
         } catch {
             appVolumes[appID] = 100
             appErrors[appID] = error.localizedDescription
             if previous < 100 { previousAppVolumes[appID] = previous }
+            succeeded = false
         }
-        selectedSceneID = nil
+        return succeeded
     }
 
     func toggleMasterMute() {
+        deactivateScene()
         if canControlMasterMute {
             _ = systemOutput.setMuted(!masterMuted)
         } else if canControlMasterVolume {
             _ = systemOutput.setVolume(isMasterSilent ? previousMasterVolume : 0)
         }
+    }
+
+    func settings(for scene: MixScene) -> SceneSettings {
+        sceneSettings[scene.id] ?? .init(masterVolume: 50, otherAppsVolume: 50, featuredApps: [])
+    }
+
+    func save(_ settings: SceneSettings, for scene: MixScene) {
+        var cleaned = settings
+        cleaned.masterVolume = min(max(settings.masterVolume, 0), 100)
+        cleaned.otherAppsVolume = min(max(settings.otherAppsVolume, 0), 100)
+        cleaned.featuredApps = Array(Dictionary(settings.featuredApps.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first }).values)
+            .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+        sceneSettings[scene.id] = cleaned
+        if let data = try? JSONEncoder().encode(sceneSettings) {
+            UserDefaults.standard.set(data, forKey: sceneSettingsKey)
+        }
+        if selectedSceneID == scene.id { apply(scene) }
+    }
+
+    func deactivateScene(restoreMaster: Bool = true) {
+        guard selectedSceneID != nil, let baseline = sceneBaseline else {
+            selectedSceneID = nil
+            sceneBaseline = nil
+            sceneError = nil
+            return
+        }
         selectedSceneID = nil
+        sceneBaseline = nil
+        sceneError = nil
+        if restoreMaster && baseline.outputID == selectedOutputID {
+            if canControlMasterVolume { _ = systemOutput.setVolume(baseline.masterVolume) }
+            if canControlMasterMute { _ = systemOutput.setMuted(baseline.muted) }
+        }
+        for (appID, volume) in baseline.appVolumes {
+            if apps.contains(where: { $0.id == appID }) {
+                setAppVolume(volume, for: appID, preserveScene: true)
+            } else {
+                appVolumes[appID] = volume
+            }
+        }
     }
 
     func apply(_ scene: MixScene) {
-        if canControlMasterVolume { _ = systemOutput.setVolume(scene.masterVolume) }
+        let settings = settings(for: scene)
+        guard outputConnected else {
+            sceneError = "Conecte uma saída de áudio para aplicar a cena."
+            return
+        }
+        guard canControlMasterVolume || !apps.isEmpty else {
+            sceneError = "Esta saída não permite ajustar o volume e não há aplicativos de áudio ativos."
+            return
+        }
+
+        if sceneBaseline == nil {
+            sceneBaseline = (selectedOutputID, masterVolume, masterMuted, appVolumes)
+        }
+        for app in apps where sceneBaseline?.appVolumes[app.id] == nil {
+            sceneBaseline?.appVolumes[app.id] = appVolumes[app.id] ?? 100
+        }
         selectedSceneID = scene.id
+        sceneError = nil
+        let masterSucceeded: Bool
+        if canControlMasterVolume {
+            masterSucceeded = systemOutput.setVolume(settings.masterVolume)
+        } else if masterMuted {
+            masterSucceeded = canControlMasterMute && systemOutput.setMuted(false)
+        } else {
+            masterSucceeded = true
+        }
+        let failedApps = apps.reduce(into: 0) { count, app in
+            let volume = settings.volume(for: app.id)
+            if !setAppVolume(volume, for: app.id, preserveScene: true) { count += 1 }
+        }
+
+        if !masterSucceeded || failedApps > 0 {
+            sceneError = "A cena foi aplicada parcialmente. Verifique a saída e as permissões de áudio dos aplicativos."
+        }
     }
 
     private func applyOutputSnapshot(_ snapshot: SystemOutputSnapshot) {
         let outputChanged = selectedOutputID != (snapshot.isConnected ? String(snapshot.deviceID) : "")
+        let sceneToReapply = outputChanged ? scenes.first(where: { $0.id == selectedSceneID }) : nil
         if outputChanged {
             selectedSceneID = nil
+            sceneError = nil
+            if snapshot.isConnected, sceneBaseline != nil {
+                sceneBaseline?.outputID = String(snapshot.deviceID)
+                sceneBaseline?.masterVolume = snapshot.volume
+                sceneBaseline?.muted = snapshot.isMuted
+            } else {
+                if let baseline = sceneBaseline {
+                    for (appID, volume) in baseline.appVolumes { appVolumes[appID] = volume }
+                }
+                sceneBaseline = nil
+            }
         } else if let selectedSceneID,
                   let scene = scenes.first(where: { $0.id == selectedSceneID }),
-                  abs(snapshot.volume - scene.masterVolume) > 1 {
-            self.selectedSceneID = nil
+                  (snapshot.isMuted || (snapshot.canSetVolume && abs(snapshot.volume - settings(for: scene).masterVolume) > 1)) {
+            deactivateScene(restoreMaster: false)
         }
         outputConnected = snapshot.isConnected
         selectedOutputID = snapshot.isConnected ? String(snapshot.deviceID) : ""
@@ -187,8 +301,12 @@ final class MixerModel: ObservableObject {
         if snapshot.volume > 0.5 { previousMasterVolume = snapshot.volume }
         if outputChanged {
             appAudio.stopAll()
-            for app in apps where (appVolumes[app.id] ?? 100) < 100 {
-                setAppVolume(appVolumes[app.id] ?? 100, for: app.id)
+            if let sceneToReapply, snapshot.isConnected {
+                apply(sceneToReapply)
+            } else {
+                for app in apps where (appVolumes[app.id] ?? 100) < 100 {
+                    setAppVolume(appVolumes[app.id] ?? 100, for: app.id, preserveScene: true)
+                }
             }
         }
     }
@@ -198,9 +316,26 @@ final class MixerModel: ObservableObject {
         let liveIDs = Set(applications.map(\.id))
         for app in apps where !liveIDs.contains(app.id) { appAudio.stop(appID: app.id) }
         apps = applications
-        for app in applications where (appVolumes[app.id] ?? 100) < 100 {
-            if previousApps[app.id]?.processIDs != app.processIDs {
-                setAppVolume(appVolumes[app.id] ?? 100, for: app.id)
+        if let scene = scenes.first(where: { $0.id == selectedSceneID }) {
+            let settings = settings(for: scene)
+            var failed = false
+            for app in applications {
+                if sceneBaseline?.appVolumes[app.id] == nil {
+                    sceneBaseline?.appVolumes[app.id] = appVolumes[app.id] ?? 100
+                }
+                let target = settings.volume(for: app.id)
+                if abs((appVolumes[app.id] ?? 100) - target) > 0.5 || previousApps[app.id]?.processIDs != app.processIDs {
+                    if !setAppVolume(target, for: app.id, preserveScene: true) { failed = true }
+                }
+            }
+            if failed {
+                sceneError = "Um aplicativo novo não pôde receber os ajustes da cena. Verifique a permissão de áudio."
+            }
+        } else {
+            for app in applications where (appVolumes[app.id] ?? 100) < 100 {
+                if previousApps[app.id]?.processIDs != app.processIDs {
+                    setAppVolume(appVolumes[app.id] ?? 100, for: app.id, preserveScene: true)
+                }
             }
         }
     }

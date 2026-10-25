@@ -7,11 +7,13 @@ Sound Mix é um aplicativo gratuito para macOS que reúne o controle de áudio d
 - Ajusta o volume geral e silencia a saída de áudio padrão, quando o dispositivo permite.
 - Mostra os aplicativos com áudio ativo e oferece controle de volume individual.
 - Alterna entre as saídas de áudio disponíveis no Mac.
-- Aplica as cenas Foco, Reunião e Descanso para ajustar rapidamente o volume geral.
+- Permite editar as cenas Foco, Reunião e Descanso, escolhendo apps em destaque e os volumes geral e dos demais apps.
 - Oferece acesso rápido pela barra de menus.
 - Acompanha a aparência do macOS ou permite escolher os temas claro e escuro em Ajustes.
 
-As cenas atuais alteram apenas o volume geral. O controle por aplicativo depende dos recursos de captura de áudio do macOS e pode exigir permissão do sistema na primeira utilização.
+Em **Cenas**, use **Editar** para escolher os apps em destaque, o volume geral e o volume dos demais apps. Apps em destaque ficam em 100% do controle individual quando emitem áudio; os demais ficam no nível configurado. É possível selecionar apps abertos ou adicionar um app instalado para que a escolha funcione mesmo quando ele iniciar depois. As escolhas são salvas no Mac. Ao desativar uma cena, o mix anterior é restaurado; ao alternar entre cenas, o mix anterior continua guardado até a desativação. Os valores iniciais são: Foco 64% geral e 65% demais; Reunião 72% geral e 35% demais; Descanso 38% geral e 80% demais. Nenhum app vem selecionado inicialmente.
+
+Saídas sem controle de volume geral ainda podem receber os ajustes por aplicativo. O controle por aplicativo depende dos recursos de captura de áudio do macOS e pode exigir permissão do sistema na primeira utilização.
 
 ## Requisitos
 

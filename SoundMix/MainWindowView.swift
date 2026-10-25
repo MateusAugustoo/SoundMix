@@ -1,6 +1,7 @@
 import AppKit
 import ServiceManagement
 import SwiftUI
+import UniformTypeIdentifiers
 
 enum SoundMixPage: String, CaseIterable {
     case overview = "Visão geral"
@@ -24,6 +25,7 @@ struct MainWindowView: View {
     @EnvironmentObject private var mixer: MixerModel
     @State private var page: SoundMixPage = .overview
     @State private var search = ""
+    @State private var editingScene: MixScene?
 
     var body: some View {
         ZStack {
@@ -52,6 +54,10 @@ struct MainWindowView: View {
             }
         }
         .frame(minWidth: 1040, minHeight: 700)
+        .sheet(item: $editingScene) { scene in
+            SceneEditorView(scene: scene, settings: mixer.settings(for: scene))
+                .environmentObject(mixer)
+        }
     }
 
     private var sidebar: some View {
@@ -192,6 +198,11 @@ struct MainWindowView: View {
                         VStack(spacing: 8) {
                             ForEach(mixer.scenes) { scene in SceneRow(scene: scene) }
                         }
+                        if let sceneError = mixer.sceneError {
+                            Text(sceneError)
+                                .font(.system(size: 10))
+                                .foregroundStyle(.red)
+                        }
                     }
                 }
                 .frame(width: 264)
@@ -261,26 +272,48 @@ struct MainWindowView: View {
             intro(eyebrow: "AJUSTES EM UM TOQUE", title: "Cenas", subtitle: "Mude o clima sem ajustar cada controle.")
             HStack(spacing: 14) {
                 ForEach(mixer.scenes) { scene in
-                    Button { mixer.apply(scene) } label: {
-                        VStack(alignment: .leading, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 12) {
                             SymbolTile(symbol: scene.symbol, tint: scene.tint, size: 43)
                             Spacer()
                             Text(scene.name).font(.system(size: 16, weight: .semibold)).foregroundStyle(SoundMixStyle.ink)
-                            Text(scene.description).font(.system(size: 11)).foregroundStyle(SoundMixStyle.muted)
-                            Text(mixer.selectedSceneID == scene.id ? "✓ Cena ativa" : "Aplicar cena →")
-                                .font(.system(size: 10, weight: .semibold)).foregroundStyle(SoundMixStyle.violetDeep)
-                        }
-                        .padding(20)
-                        .frame(maxWidth: .infinity, minHeight: 212, alignment: .leading)
-                        .softSurface(radius: 17)
+                            Text(sceneSummary(scene)).font(.system(size: 11)).foregroundStyle(SoundMixStyle.muted)
+                            HStack {
+                                Button(mixer.selectedSceneID == scene.id ? "Desativar cena" : "Aplicar cena") {
+                                    if mixer.selectedSceneID == scene.id { mixer.deactivateScene() }
+                                    else { mixer.apply(scene) }
+                                }
+                                .font(.system(size: 11, weight: .semibold))
+                                .soundMixGlassButton()
+                                Spacer()
+                                Button("Editar") { editingScene = scene }
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .soundMixGlassButton()
+                            }
                     }
-                    .buttonStyle(.plain)
+                    .padding(20)
+                    .frame(maxWidth: .infinity, minHeight: 212, alignment: .leading)
+                    .softSurface(radius: 17)
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 17)
+                            .strokeBorder(SoundMixStyle.violet.opacity(mixer.selectedSceneID == scene.id ? 0.6 : 0), lineWidth: 1.5)
+                    }
                 }
             }
-            Text("As cenas ajustam o volume real da saída padrão do macOS.")
+            if let sceneError = mixer.sceneError {
+                Text(sceneError)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.red)
+            }
+            Text("Apps em destaque ficam em 100%. Os demais usam o nível escolhido. Desativar restaura o mix anterior. O controle individual pode pedir permissão do macOS.")
                 .font(.system(size: 11)).foregroundStyle(SoundMixStyle.muted)
         }
         .padding(.top, 40)
+    }
+
+    private func sceneSummary(_ scene: MixScene) -> String {
+        let settings = mixer.settings(for: scene)
+        let count = settings.featuredApps.count
+        return "Geral \(Int(settings.masterVolume))% · Demais \(Int(settings.otherAppsVolume))% · \(count) \(count == 1 ? "app" : "apps") em destaque"
     }
 
     private var settingsPage: some View {
@@ -487,7 +520,10 @@ struct SceneRow: View {
     @EnvironmentObject private var mixer: MixerModel
     let scene: MixScene
     var body: some View {
-        Button { mixer.apply(scene) } label: {
+        Button {
+            if mixer.selectedSceneID == scene.id { mixer.deactivateScene() }
+            else { mixer.apply(scene) }
+        } label: {
             HStack(spacing: 10) {
                 SymbolTile(symbol: scene.symbol, tint: scene.tint, size: 31)
                 VStack(alignment: .leading, spacing: 3) {
@@ -503,6 +539,149 @@ struct SceneRow: View {
             .softSurface(radius: 13)
         }
         .buttonStyle(.plain)
+    }
+}
+
+private struct SceneEditorView: View {
+    @EnvironmentObject private var mixer: MixerModel
+    @Environment(\.dismiss) private var dismiss
+    let scene: MixScene
+    @State private var settings: SceneSettings
+    @State private var availableApps: [SceneAppChoice] = []
+
+    init(scene: MixScene, settings: SceneSettings) {
+        self.scene = scene
+        _settings = State(initialValue: settings)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            HStack(spacing: 12) {
+                SymbolTile(symbol: scene.symbol, tint: scene.tint, size: 42)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Editar \(scene.name)").font(.system(size: 21, weight: .bold)).foregroundStyle(SoundMixStyle.ink)
+                    Text("Escolha os apps que ficam em destaque.").font(.system(size: 12)).foregroundStyle(SoundMixStyle.muted)
+                }
+                Spacer()
+            }
+
+            volumeControl("Volume geral", value: $settings.masterVolume)
+            volumeControl("Demais aplicativos", value: $settings.otherAppsVolume)
+
+            HStack {
+                Text("APPS EM DESTAQUE")
+                    .font(.system(size: 10, weight: .bold)).tracking(1).foregroundStyle(SoundMixStyle.muted)
+                Spacer()
+                Button("Escolher app instalado…", action: chooseInstalledApp)
+                    .font(.system(size: 11, weight: .semibold))
+                    .soundMixGlassButton()
+            }
+            Text("Selecionados em 100% quando emitirem áudio. Escolha entre os apps abertos ou adicione um app instalado.")
+                .font(.system(size: 11)).foregroundStyle(SoundMixStyle.muted)
+
+            ScrollView {
+                LazyVStack(spacing: 2) {
+                    ForEach(availableApps) { app in
+                        let selected = settings.featuredApps.contains(where: { $0.id == app.id })
+                        Button { toggle(app) } label: {
+                            HStack(spacing: 10) {
+                                Image(nsImage: icon(for: app))
+                                    .resizable().scaledToFit().frame(width: 25, height: 25)
+                                Text(app.name).font(.system(size: 12, weight: .medium))
+                                    .foregroundStyle(SoundMixStyle.ink)
+                                Spacer()
+                                Image(systemName: selected ? "checkmark.circle.fill" : "circle")
+                                    .font(.system(size: 17))
+                                    .foregroundStyle(selected ? SoundMixStyle.violet : SoundMixStyle.muted)
+                            }
+                            .padding(.horizontal, 10).frame(height: 40)
+                            .background(selected ? SoundMixStyle.violet.opacity(0.1) : Color.clear,
+                                        in: RoundedRectangle(cornerRadius: 8))
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("\(app.name), \(selected ? "em destaque" : "fora do destaque")")
+                    }
+                }
+                .padding(5)
+            }
+            .frame(height: 180)
+            .softSurface(radius: 12)
+
+            HStack {
+                Spacer()
+                Button("Cancelar") { dismiss() }.soundMixGlassButton()
+                Button("Salvar cena") {
+                    mixer.save(settings, for: scene)
+                    dismiss()
+                }
+                .soundMixGlassButton()
+                .tint(SoundMixStyle.violet)
+            }
+        }
+        .padding(25)
+        .frame(width: 540)
+        .background(SoundMixStyle.contentTint)
+        .onAppear(perform: refreshAvailableApps)
+    }
+
+    private func volumeControl(_ title: String, value: Binding<Double>) -> some View {
+        HStack(spacing: 12) {
+            Text(title).font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(SoundMixStyle.ink).frame(width: 125, alignment: .leading)
+            Slider(value: value, in: 0...100, step: 1).tint(SoundMixStyle.violet)
+            Text("\(Int(value.wrappedValue))%")
+                .font(.system(size: 12, weight: .semibold)).monospacedDigit()
+                .foregroundStyle(SoundMixStyle.violetDeep).frame(width: 36, alignment: .trailing)
+        }
+    }
+
+    private func refreshAvailableApps() {
+        let open = NSWorkspace.shared.runningApplications.compactMap { app -> SceneAppChoice? in
+            guard app.activationPolicy == .regular, let id = app.bundleIdentifier,
+                  id != Bundle.main.bundleIdentifier else { return nil }
+            return SceneAppChoice(id: id, name: app.localizedName ?? id)
+        }
+        let active = mixer.apps.filter { !$0.id.hasPrefix("pid:") }
+            .map { SceneAppChoice(id: $0.id, name: $0.name) }
+        availableApps = Array(Dictionary((settings.featuredApps + active + open).map { ($0.id, $0) },
+                                         uniquingKeysWith: { first, _ in first }).values)
+            .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+    }
+
+    private func toggle(_ app: SceneAppChoice) {
+        if settings.featuredApps.contains(where: { $0.id == app.id }) {
+            settings.featuredApps.removeAll { $0.id == app.id }
+        } else {
+            settings.featuredApps.append(app)
+        }
+    }
+
+    private func icon(for app: SceneAppChoice) -> NSImage {
+        if let active = mixer.apps.first(where: { $0.id == app.id }), let icon = active.icon { return icon }
+        if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: app.id) {
+            return NSWorkspace.shared.icon(forFile: url.path)
+        }
+        return NSImage(systemSymbolName: "app", accessibilityDescription: nil) ?? NSImage()
+    }
+
+    private func chooseInstalledApp() {
+        let panel = NSOpenPanel()
+        panel.prompt = "Adicionar"
+        panel.message = "Escolha um aplicativo para incluir na cena"
+        panel.allowedContentTypes = [.applicationBundle]
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.begin { response in
+            guard response == .OK, let url = panel.url,
+                  let bundle = Bundle(url: url), let id = bundle.bundleIdentifier else { return }
+            let name = (bundle.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String)
+                ?? (bundle.object(forInfoDictionaryKey: "CFBundleName") as? String)
+                ?? url.deletingPathExtension().lastPathComponent
+            let choice = SceneAppChoice(id: id, name: name)
+            if !availableApps.contains(where: { $0.id == id }) { availableApps.append(choice) }
+            if !settings.featuredApps.contains(where: { $0.id == id }) { settings.featuredApps.append(choice) }
+            availableApps.sort { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+        }
     }
 }
 
