@@ -1,0 +1,22 @@
+# macOS and editor files
+.DS_Store
+.AppleDouble
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+
+# Xcode and Swift build output
+/soundMix-app.xcodeproj/
+.derivedData/
+DerivedData/
+build/
+xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+*.xccheckout
+*.dSYM/
+.build/
+.swiftpm/
+*.log
