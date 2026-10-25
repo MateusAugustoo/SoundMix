@@ -57,6 +57,8 @@ O código C em `SoundMix/RealtimeGain.c` faz parte do processamento de áudio po
 
 Para compilar e instalar em `/Applications`, execute `./scripts/install-app.sh`. O script gera o projeto antes do build. Use `SOUNDMIX_INSTALL_DIR` para escolher outra pasta de instalação.
 
+Em **Ajustes**, a opção **Iniciar com o sistema** registra o app instalado para abrir no próximo início de sessão. Se o macOS exigir aprovação, use o atalho exibido pelo Sound Mix para autorizá-lo nos Itens de Início de Sessão.
+
 ## Licença
 
 O código deste repositório é distribuído sob a [licença MIT](LICENSE).

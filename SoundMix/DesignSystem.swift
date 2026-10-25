@@ -58,6 +58,10 @@ enum SoundMixStyle {
     static let iconLine = adaptive(light: 0xFFFFFF, dark: 0xD8C8FA, lightAlpha: 0.62, darkAlpha: 0.21)
     static let sliderTrack = adaptive(light: 0xFFFFFF, dark: 0xD7C8F7, lightAlpha: 0.55, darkAlpha: 0.22)
     static let sliderThumb = adaptive(light: 0xFFFFFF, dark: 0xF2EBFF)
+    static let switchOff = adaptive(light: 0xBBB2C9, dark: 0x59476F)
+    static let switchOffLine = adaptive(light: 0x9186A4, dark: 0xB8A3D5)
+    static let switchThumbOn = adaptive(light: 0xFFFFFF, dark: 0x241B34)
+    static let switchThumbOff = adaptive(light: 0xFFFFFF, dark: 0xF4EEFF)
     static let cardGlow = adaptive(light: 0xFFFFFF, dark: 0x8F6CBA, lightAlpha: 0.08, darkAlpha: 0.11)
     static let shadow = adaptive(light: 0x483B6E, dark: 0x05030A, lightAlpha: 0.10, darkAlpha: 0.32)
 

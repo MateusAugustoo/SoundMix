@@ -1,3 +1,5 @@
+import AppKit
+import ServiceManagement
 import SwiftUI
 
 enum SoundMixPage: String, CaseIterable {
@@ -570,10 +572,59 @@ private struct AppearanceSelector: View {
     }
 }
 
+private struct SoundMixToggleStyle: ToggleStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        Button {
+            configuration.isOn.toggle()
+        } label: {
+            HStack(spacing: 14) {
+                configuration.label
+                Spacer()
+                Text(configuration.isOn ? "Ligado" : "Desligado")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(configuration.isOn ? SoundMixStyle.violetDeep : SoundMixStyle.muted)
+                    .frame(width: 58, alignment: .trailing)
+                    .accessibilityHidden(true)
+
+                Capsule()
+                    .fill(configuration.isOn ? SoundMixStyle.violet : SoundMixStyle.switchOff)
+                    .overlay {
+                        Capsule()
+                            .strokeBorder(configuration.isOn ? SoundMixStyle.violetDeep.opacity(0.55) : SoundMixStyle.switchOffLine, lineWidth: 1)
+                    }
+                    .overlay {
+                        Circle()
+                            .fill(configuration.isOn ? SoundMixStyle.switchThumbOn : SoundMixStyle.switchThumbOff)
+                            .frame(width: 23, height: 23)
+                            .shadow(color: SoundMixStyle.shadow, radius: 3, y: 1)
+                            .offset(x: configuration.isOn ? 12 : -12)
+                    }
+                    .frame(width: 56, height: 31)
+                    .shadow(color: SoundMixStyle.violet.opacity(configuration.isOn ? 0.24 : 0), radius: 6)
+                    .accessibilityHidden(true)
+            }
+            .frame(height: 73)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+        .accessibilityValue(configuration.isOn ? "Ligado" : "Desligado")
+        .animation(.easeInOut(duration: 0.18), value: configuration.isOn)
+    }
+}
+
 private struct SettingsPanel: View {
     @AppStorage("appearanceMode") private var appearanceMode = AppearanceMode.system.rawValue
-    @State private var launchAtLogin = true
+    @State private var launchAtLoginStatus: SMAppService.Status = .notRegistered
+    @State private var launchAtLoginError: String?
     @State private var smoothVolume = false
+
+    private var launchAtLogin: Binding<Bool> {
+        Binding(
+            get: { launchAtLoginStatus == .enabled || launchAtLoginStatus == .requiresApproval },
+            set: { updateLaunchAtLogin($0) }
+        )
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -587,24 +638,79 @@ private struct SettingsPanel: View {
             }
             .frame(height: 73)
             Divider()
-            setting("Iniciar com o sistema", detail: "Abrir o Sound Mix ao iniciar a sessão", value: $launchAtLogin)
+            VStack(alignment: .leading, spacing: 0) {
+                setting("Iniciar com o sistema", detail: "Abrir o Sound Mix ao iniciar a sessão", value: launchAtLogin)
+
+                if launchAtLoginStatus == .requiresApproval {
+                    HStack(spacing: 8) {
+                        Image(systemName: "exclamationmark.circle")
+                        Text("Autorize o Sound Mix nos itens de início de sessão.")
+                        Button("Abrir Ajustes do Sistema") {
+                            SMAppService.openSystemSettingsLoginItems()
+                        }
+                        .buttonStyle(.plain)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(SoundMixStyle.violetDeep)
+                    }
+                    .font(.system(size: 10))
+                    .foregroundStyle(SoundMixStyle.muted)
+                    .padding(.bottom, 14)
+                }
+
+                if let launchAtLoginError {
+                    Text(launchAtLoginError)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.red)
+                        .padding(.bottom, 14)
+                }
+            }
             Divider()
             setting("Suavizar alterações de volume", detail: "Transições mais agradáveis para os ouvidos", value: $smoothVolume)
         }
         .padding(.horizontal, 20)
         .softSurface(radius: 16)
+        .onAppear(perform: refreshLaunchAtLogin)
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            refreshLaunchAtLogin()
+        }
+    }
+
+    private func refreshLaunchAtLogin() {
+        launchAtLoginStatus = SMAppService.mainApp.status
+        launchAtLoginError = nil
+    }
+
+    private func updateLaunchAtLogin(_ enabled: Bool) {
+        let service = SMAppService.mainApp
+        var operationError: Error?
+
+        do {
+            if enabled {
+                try service.register()
+            } else {
+                try service.unregister()
+            }
+        } catch {
+            operationError = error
+        }
+
+        refreshLaunchAtLogin()
+        let isRegistered = launchAtLoginStatus == .enabled || launchAtLoginStatus == .requiresApproval
+        if let operationError, isRegistered != enabled {
+            launchAtLoginError = "Não foi possível alterar o início automático: \(operationError.localizedDescription)"
+        } else {
+            launchAtLoginError = nil
+        }
     }
 
     private func setting(_ title: String, detail: String, value: Binding<Bool>) -> some View {
-        HStack {
+        Toggle(isOn: value) {
             VStack(alignment: .leading, spacing: 5) {
                 Text(title).font(.system(size: 12, weight: .semibold)).foregroundStyle(SoundMixStyle.ink)
                 Text(detail).font(.system(size: 10)).foregroundStyle(SoundMixStyle.muted)
             }
-            Spacer()
-            Toggle(title, isOn: value).labelsHidden().tint(SoundMixStyle.violet)
         }
-        .frame(height: 73)
+        .toggleStyle(SoundMixToggleStyle())
     }
 }
 
