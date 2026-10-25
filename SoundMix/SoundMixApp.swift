@@ -12,18 +12,21 @@ final class SoundMixAppDelegate: NSObject, NSApplicationDelegate {
 @main
 struct SoundMixApp: App {
     @NSApplicationDelegateAdaptor(SoundMixAppDelegate.self) private var appDelegate
+    @AppStorage("appearanceMode") private var appearanceMode = AppearanceMode.system.rawValue
     @StateObject private var mixer = MixerModel()
 
     var body: some Scene {
         MenuBarExtra("Sound Mix", systemImage: "waveform") {
             MenuBarPanel()
                 .environmentObject(mixer)
+                .preferredColorScheme(AppearanceMode(rawValue: appearanceMode)?.colorScheme)
         }
         .menuBarExtraStyle(.window)
 
         Window("Sound Mix", id: "main") {
             MainWindowView()
                 .environmentObject(mixer)
+                .preferredColorScheme(AppearanceMode(rawValue: appearanceMode)?.colorScheme)
         }
         .windowStyle(.hiddenTitleBar)
         .defaultSize(width: 1160, height: 760)

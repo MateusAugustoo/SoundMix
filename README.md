@@ -9,6 +9,7 @@ Sound Mix é um aplicativo gratuito para macOS que reúne o controle de áudio d
 - Alterna entre as saídas de áudio disponíveis no Mac.
 - Aplica as cenas Foco, Reunião e Descanso para ajustar rapidamente o volume geral.
 - Oferece acesso rápido pela barra de menus.
+- Acompanha a aparência do macOS ou permite escolher os temas claro e escuro em Ajustes.
 
 As cenas atuais alteram apenas o volume geral. O controle por aplicativo depende dos recursos de captura de áudio do macOS e pode exigir permissão do sistema na primeira utilização.
 

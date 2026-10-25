@@ -7,11 +7,6 @@ private enum QuickTab: String, CaseIterable {
     case outputs = "Saídas"
 }
 
-private enum PanelStyle {
-    static let secondary = Color(red: 0.34, green: 0.32, blue: 0.40)
-    static let label = Color(red: 0.40, green: 0.36, blue: 0.48)
-}
-
 struct MenuBarPanel: View {
     @EnvironmentObject private var mixer: MixerModel
     @Environment(\.openWindow) private var openWindow
@@ -20,13 +15,13 @@ struct MenuBarPanel: View {
     var body: some View {
         ZStack {
             Rectangle().fill(.ultraThinMaterial)
-            Color(red: 0.96, green: 0.94, blue: 0.99).opacity(0.84)
+            SoundMixStyle.panelBackground
             LinearGradient(
-                colors: [.white.opacity(0.22), Color(red: 0.89, green: 0.84, blue: 1).opacity(0.16), .white.opacity(0.10)],
+                colors: [SoundMixStyle.cardGlow, SoundMixStyle.panelGradient, SoundMixStyle.cardGlow],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
-            RadialGradient(colors: [.white.opacity(0.25), .clear], center: .topLeading, startRadius: 20, endRadius: 260)
+            RadialGradient(colors: [SoundMixStyle.violetGlow.opacity(0.20), .clear], center: .topLeading, startRadius: 20, endRadius: 260)
 
             VStack(alignment: .leading, spacing: 14) {
                 HStack(spacing: 10) {
@@ -41,7 +36,7 @@ struct MenuBarPanel: View {
                             .foregroundStyle(SoundMixStyle.ink)
                         Text("Controle rápido de áudio")
                             .font(.system(size: 10))
-                            .foregroundStyle(PanelStyle.secondary)
+                            .foregroundStyle(SoundMixStyle.panelSecondary)
                     }
                     Spacer()
                     Circle().fill(mixer.outputConnected ? Color.green.opacity(0.75) : Color.orange.opacity(0.75)).frame(width: 7, height: 7)
@@ -52,14 +47,14 @@ struct MenuBarPanel: View {
                         Button { tab = item } label: {
                             Text(item.rawValue)
                                 .font(.system(size: 10, weight: .semibold))
-                                .foregroundStyle(tab == item ? SoundMixStyle.violetDeep : PanelStyle.secondary)
+                                .foregroundStyle(tab == item ? SoundMixStyle.violetDeep : SoundMixStyle.panelSecondary)
                                 .frame(maxWidth: .infinity)
                                 .frame(height: 28)
                                 .background {
                                     if tab == item {
                                         RoundedRectangle(cornerRadius: 7)
-                                            .fill(.white.opacity(0.57))
-                                            .overlay { RoundedRectangle(cornerRadius: 7).strokeBorder(.white.opacity(0.84)) }
+                                            .fill(SoundMixStyle.selection)
+                                            .overlay { RoundedRectangle(cornerRadius: 7).strokeBorder(SoundMixStyle.selectionLine) }
                                             .shadow(color: SoundMixStyle.violetDeep.opacity(0.10), radius: 4, y: 2)
                                     }
                                 }
@@ -68,8 +63,8 @@ struct MenuBarPanel: View {
                     }
                 }
                 .padding(3)
-                .background(Color.white.opacity(0.17), in: RoundedRectangle(cornerRadius: 10))
-                .overlay { RoundedRectangle(cornerRadius: 10).strokeBorder(.white.opacity(0.69)) }
+                .background(SoundMixStyle.surfaceTint, in: RoundedRectangle(cornerRadius: 10))
+                .overlay { RoundedRectangle(cornerRadius: 10).strokeBorder(SoundMixStyle.line) }
 
                 Group {
                     switch tab {
@@ -79,7 +74,7 @@ struct MenuBarPanel: View {
                     }
                 }
 
-                Rectangle().fill(.white.opacity(0.64)).frame(height: 1)
+                Rectangle().fill(SoundMixStyle.separator).frame(height: 1)
                 HStack {
                     Button {
                         openWindow(id: "main")
@@ -96,14 +91,13 @@ struct MenuBarPanel: View {
 
                     Button("Sair") { NSApplication.shared.terminate(nil) }
                         .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(PanelStyle.secondary)
+                        .foregroundStyle(SoundMixStyle.panelSecondary)
                         .buttonStyle(.plain)
                 }
             }
             .padding(16)
         }
         .frame(width: 356)
-        .preferredColorScheme(.light)
     }
 
     private var generalContent: some View {
@@ -131,25 +125,25 @@ struct MenuBarPanel: View {
                     GlassVolumeSlider(value: mixer.masterBinding, label: "Volume geral", enabled: mixer.canControlMasterVolume)
                 }
                 .font(.system(size: 13))
-                .foregroundStyle(PanelStyle.secondary)
+                .foregroundStyle(SoundMixStyle.panelSecondary)
                 if mixer.outputConnected && !mixer.canControlMasterVolume {
                     Text("Este dispositivo não permite ajustar o volume pelo macOS.")
                         .font(.system(size: 9))
-                        .foregroundStyle(PanelStyle.secondary)
+                        .foregroundStyle(SoundMixStyle.panelSecondary)
                 }
             }
             .padding(.horizontal, 4)
             .padding(.top, 3)
             .padding(.bottom, 14)
             .overlay(alignment: .bottom) {
-                Rectangle().fill(.white.opacity(0.62)).frame(height: 1)
+                Rectangle().fill(SoundMixStyle.separator).frame(height: 1)
             }
 
             sectionLabel("VOLUME POR APLICATIVO")
             VStack(spacing: 0) {
                 ForEach(Array(mixer.apps.prefix(3).enumerated()), id: \.element.id) { index, app in
                     QuickAppRow(app: app)
-                    if index < min(mixer.apps.count, 3) - 1 { Rectangle().fill(.white.opacity(0.48)).frame(height: 1) }
+                    if index < min(mixer.apps.count, 3) - 1 { Rectangle().fill(SoundMixStyle.separator).frame(height: 1) }
                 }
                 if mixer.apps.isEmpty { emptyApplications }
             }
@@ -173,7 +167,7 @@ struct MenuBarPanel: View {
                 LazyVStack(spacing: 0) {
                     ForEach(Array(mixer.apps.enumerated()), id: \.element.id) { index, app in
                         QuickAppRow(app: app)
-                        if index < mixer.apps.count - 1 { Rectangle().fill(.white.opacity(0.48)).frame(height: 1) }
+                        if index < mixer.apps.count - 1 { Rectangle().fill(SoundMixStyle.separator).frame(height: 1) }
                     }
                     if mixer.apps.isEmpty { emptyApplications }
                 }
@@ -186,7 +180,7 @@ struct MenuBarPanel: View {
     private var emptyApplications: some View {
         Text("Nenhum aplicativo usando saída de áudio no momento.")
             .font(.system(size: 10))
-            .foregroundStyle(PanelStyle.secondary)
+            .foregroundStyle(SoundMixStyle.panelSecondary)
             .frame(maxWidth: .infinity, minHeight: 54, alignment: .leading)
     }
 
@@ -206,7 +200,7 @@ struct MenuBarPanel: View {
                                         .foregroundStyle(SoundMixStyle.ink)
                                     Text(isSelected ? "Saída atual · \(output.detail)" : output.detail)
                                         .font(.system(size: 9))
-                                        .foregroundStyle(PanelStyle.secondary)
+                                        .foregroundStyle(SoundMixStyle.panelSecondary)
                                 }
                                 Spacer()
                                 if isSelected {
@@ -217,9 +211,9 @@ struct MenuBarPanel: View {
                             }
                             .padding(.horizontal, 7)
                             .frame(height: 54)
-                            .background(isSelected ? SoundMixStyle.violet.opacity(0.10) : Color.white.opacity(0.08),
+                            .background(isSelected ? SoundMixStyle.violet.opacity(0.10) : SoundMixStyle.surfaceTint,
                                         in: RoundedRectangle(cornerRadius: 9))
-                            .overlay { RoundedRectangle(cornerRadius: 9).strokeBorder(.white.opacity(0.63)) }
+                            .overlay { RoundedRectangle(cornerRadius: 9).strokeBorder(SoundMixStyle.line) }
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel(isSelected ? "Saída atual: \(output.name)" : "Selecionar \(output.name) como saída de áudio")
@@ -227,7 +221,7 @@ struct MenuBarPanel: View {
                     if mixer.outputs.isEmpty {
                         Text("Nenhuma saída de áudio disponível")
                             .font(.system(size: 10))
-                            .foregroundStyle(PanelStyle.secondary)
+                            .foregroundStyle(SoundMixStyle.panelSecondary)
                             .frame(maxWidth: .infinity, minHeight: 54)
                     }
                 }
@@ -244,7 +238,7 @@ struct MenuBarPanel: View {
         Text(title)
             .font(.system(size: 9, weight: .bold))
             .tracking(1.1)
-            .foregroundStyle(PanelStyle.label)
+            .foregroundStyle(SoundMixStyle.panelLabel)
             .padding(.leading, 2)
     }
 }
@@ -262,7 +256,7 @@ private struct QuickAppRow: View {
                     .foregroundStyle(SoundMixStyle.ink)
                 Text(mixer.appErrors[app.id] ?? app.detail)
                     .font(.system(size: 9))
-                    .foregroundStyle(mixer.appErrors[app.id] == nil ? PanelStyle.secondary : .red)
+                    .foregroundStyle(mixer.appErrors[app.id] == nil ? SoundMixStyle.panelSecondary : .red)
                     .lineLimit(1)
             }
             .frame(width: 94, alignment: .leading)
@@ -271,12 +265,12 @@ private struct QuickAppRow: View {
                 .font(.system(size: 10, weight: .semibold))
                 .monospacedDigit()
                 .fixedSize(horizontal: true, vertical: false)
-                .foregroundStyle(PanelStyle.secondary)
+                .foregroundStyle(SoundMixStyle.panelSecondary)
                 .frame(width: 34, alignment: .trailing)
             Button { mixer.toggleAppMute(app.id) } label: {
                 Image(systemName: (mixer.appVolumes[app.id] ?? 100) < 0.5 ? "speaker.slash" : "speaker.wave.2")
                     .font(.system(size: 11))
-                    .foregroundStyle(PanelStyle.secondary)
+                    .foregroundStyle(SoundMixStyle.panelSecondary)
                     .frame(width: 18, height: 20)
             }
             .buttonStyle(.plain)
@@ -299,13 +293,13 @@ private struct GlassVolumeSlider: View {
 
             ZStack(alignment: .leading) {
                 Capsule()
-                    .fill(.white.opacity(0.55))
+                    .fill(SoundMixStyle.sliderTrack)
                     .frame(height: 6)
                 Capsule()
                     .fill(SoundMixStyle.violet.opacity(0.88))
                     .frame(width: 8 + trackWidth * progress, height: 6)
                 Circle()
-                    .fill(.white)
+                    .fill(SoundMixStyle.sliderThumb)
                     .frame(width: 16, height: 16)
                     .shadow(color: SoundMixStyle.violetDeep.opacity(0.16), radius: 5, y: 2)
                     .offset(x: trackWidth * progress)

@@ -46,11 +46,10 @@ struct MainWindowView: View {
                     }
                     .scrollIndicators(.hidden)
                 }
-                .background(Color.white.opacity(0.28))
+                .background(SoundMixStyle.contentTint)
             }
         }
         .frame(minWidth: 1040, minHeight: 700)
-        .preferredColorScheme(.light)
     }
 
     private var sidebar: some View {
@@ -101,8 +100,8 @@ struct MainWindowView: View {
         .padding(.bottom, 13)
         .frame(maxHeight: .infinity)
         .background(.ultraThinMaterial)
-        .background(Color.white.opacity(0.18))
-        .overlay(alignment: .trailing) { Rectangle().fill(.white.opacity(0.65)).frame(width: 1) }
+        .background(SoundMixStyle.sidebarTint)
+        .overlay(alignment: .trailing) { Rectangle().fill(SoundMixStyle.separator).frame(width: 1) }
     }
 
     private func navButton(_ destination: SoundMixPage) -> some View {
@@ -122,10 +121,10 @@ struct MainWindowView: View {
             }
             .padding(.horizontal, 12)
             .frame(height: 39)
-            .background(page == destination ? Color.white.opacity(0.50) : Color.clear, in: RoundedRectangle(cornerRadius: 10))
+            .background(page == destination ? SoundMixStyle.selection : Color.clear, in: RoundedRectangle(cornerRadius: 10))
             .overlay {
                 if page == destination {
-                    RoundedRectangle(cornerRadius: 10).strokeBorder(.white.opacity(0.75), lineWidth: 1)
+                    RoundedRectangle(cornerRadius: 10).strokeBorder(SoundMixStyle.selectionLine, lineWidth: 1)
                 }
             }
         }
@@ -151,8 +150,8 @@ struct MainWindowView: View {
         .font(.system(size: 12))
         .padding(.horizontal, 32)
         .frame(height: 66)
-        .background(Color.white.opacity(0.12))
-        .overlay(alignment: .bottom) { Rectangle().fill(.white.opacity(0.55)).frame(height: 1) }
+        .background(SoundMixStyle.toolbarTint)
+        .overlay(alignment: .bottom) { Rectangle().fill(SoundMixStyle.separator).frame(height: 1) }
     }
 
     private var overview: some View {
@@ -351,10 +350,10 @@ struct MasterCard: View {
         .frame(maxWidth: .infinity)
         .background {
             RoundedRectangle(cornerRadius: 19)
-                .fill(RadialGradient(colors: [SoundMixStyle.violet.opacity(0.23), .white.opacity(0.08)], center: .bottomTrailing, startRadius: 10, endRadius: 380))
+                .fill(RadialGradient(colors: [SoundMixStyle.violet.opacity(0.23), SoundMixStyle.cardGlow], center: .bottomTrailing, startRadius: 10, endRadius: 380))
         }
         .soundMixGlassCard(radius: 19)
-        .overlay { RoundedRectangle(cornerRadius: 19).strokeBorder(.white.opacity(0.8), lineWidth: 1) }
+        .overlay { RoundedRectangle(cornerRadius: 19).strokeBorder(SoundMixStyle.selectionLine, lineWidth: 1) }
         .shadow(color: SoundMixStyle.violetDeep.opacity(0.14), radius: 20, y: 10)
     }
 }
@@ -372,7 +371,7 @@ struct AppList: View {
             } else {
                 ForEach(apps) { app in
                     AudioApplicationRow(app: app)
-                    if app.id != apps.last?.id { Rectangle().fill(.white.opacity(0.58)).frame(height: 1) }
+                    if app.id != apps.last?.id { Rectangle().fill(SoundMixStyle.separator).frame(height: 1) }
                 }
             }
         }
@@ -395,7 +394,7 @@ struct AudioApplicationIcon: View {
             }
         }
         .frame(width: size, height: size)
-        .background(.white.opacity(0.46), in: RoundedRectangle(cornerRadius: size * 0.25))
+        .background(SoundMixStyle.iconBackground, in: RoundedRectangle(cornerRadius: size * 0.25))
     }
 }
 
@@ -505,12 +504,89 @@ struct SceneRow: View {
     }
 }
 
+private struct AppearanceSelector: View {
+    @Binding var selection: String
+    @State private var hoveredMode: AppearanceMode?
+
+    var body: some View {
+        HStack(spacing: 4) {
+            ForEach(AppearanceMode.allCases) { mode in
+                let isSelected = selection == mode.rawValue
+
+                Button {
+                    selection = mode.rawValue
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: mode.symbol)
+                            .font(.system(size: 12, weight: .medium))
+                        Text(mode.title)
+                            .font(.system(size: 11, weight: .semibold))
+                    }
+                    .foregroundStyle(isSelected ? SoundMixStyle.violetDeep : SoundMixStyle.muted)
+                    .frame(maxWidth: .infinity, minHeight: 32)
+                    .background {
+                        if isSelected {
+                            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                                .fill(LinearGradient(
+                                    colors: [SoundMixStyle.violet.opacity(0.18), SoundMixStyle.selection],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                ))
+                                .overlay {
+                                    RoundedRectangle(cornerRadius: 9, style: .continuous)
+                                        .strokeBorder(SoundMixStyle.selectionLine, lineWidth: 1)
+                                }
+                        } else if hoveredMode == mode {
+                            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                                .fill(SoundMixStyle.selection.opacity(0.45))
+                        }
+                    }
+                    .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .onHover { isHovering in
+                    if isHovering {
+                        hoveredMode = mode
+                    } else if hoveredMode == mode {
+                        hoveredMode = nil
+                    }
+                }
+                .accessibilityLabel(mode.title)
+                .accessibilityAddTraits(isSelected ? .isSelected : [])
+            }
+        }
+        .padding(4)
+        .frame(width: 270)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .background(SoundMixStyle.surfaceTint, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(SoundMixStyle.line, lineWidth: 1)
+        }
+        .animation(.easeInOut(duration: 0.18), value: selection)
+        .animation(.easeInOut(duration: 0.18), value: hoveredMode)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Aparência")
+    }
+}
+
 private struct SettingsPanel: View {
+    @AppStorage("appearanceMode") private var appearanceMode = AppearanceMode.system.rawValue
     @State private var launchAtLogin = true
     @State private var smoothVolume = false
 
     var body: some View {
         VStack(spacing: 0) {
+            HStack {
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("Aparência").font(.system(size: 12, weight: .semibold)).foregroundStyle(SoundMixStyle.ink)
+                    Text("Escolha o tema do Sound Mix").font(.system(size: 10)).foregroundStyle(SoundMixStyle.muted)
+                }
+                Spacer()
+                AppearanceSelector(selection: $appearanceMode)
+            }
+            .frame(height: 73)
+            Divider()
             setting("Iniciar com o sistema", detail: "Abrir o Sound Mix ao iniciar a sessão", value: $launchAtLogin)
             Divider()
             setting("Suavizar alterações de volume", detail: "Transições mais agradáveis para os ouvidos", value: $smoothVolume)
