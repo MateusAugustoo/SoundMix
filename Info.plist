@@ -30,5 +30,7 @@
     <true/>
     <key>NSAudioCaptureUsageDescription</key>
     <string>O Sound Mix precisa acessar o áudio do sistema para ajustar o volume de cada aplicativo.</string>
+    <key>NSAppleEventsUsageDescription</key>
+    <string>O Sound Mix precisa controlar o Spotify para reproduzir, pausar e trocar músicas.</string>
 </dict>
 </plist>

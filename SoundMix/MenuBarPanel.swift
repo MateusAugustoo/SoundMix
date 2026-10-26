@@ -9,6 +9,7 @@ private enum QuickTab: String, CaseIterable {
 
 struct MenuBarPanel: View {
     @EnvironmentObject private var mixer: MixerModel
+    @EnvironmentObject private var spotify: SpotifyPlayback
     @Environment(\.openWindow) private var openWindow
     @State private var tab: QuickTab = .general
 
@@ -98,10 +99,14 @@ struct MenuBarPanel: View {
             .padding(16)
         }
         .frame(width: 356)
+        .onAppear { spotify.start() }
     }
 
     private var generalContent: some View {
         VStack(alignment: .leading, spacing: 12) {
+            if spotify.isRunning {
+                SpotifyPlayerCard(compact: true)
+            }
             sectionLabel("VOLUME DO SISTEMA")
             VStack(alignment: .leading, spacing: 11) {
                 HStack(spacing: 8) {

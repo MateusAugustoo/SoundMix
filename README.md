@@ -5,6 +5,7 @@ Sound Mix é um aplicativo gratuito para macOS que reúne o controle de áudio d
 ## O que o app faz
 
 - Ajusta o volume geral e silencia a saída de áudio padrão, quando o dispositivo permite.
+- Mostra a música e a capa atuais do Spotify e permite reproduzir, pausar, avançar e voltar faixas pela janela ou pela barra de menus.
 - Mostra os aplicativos com áudio ativo e oferece controle de volume individual.
 - Alterna entre as saídas de áudio disponíveis no Mac.
 - Permite editar as cenas Foco, Reunião e Descanso, escolhendo apps em destaque e os volumes geral e dos demais apps.
@@ -54,6 +55,8 @@ O arquivo `project.yaml` é a fonte de configuração do projeto. A pasta `sound
 | `scripts/install-app.sh` | Geração, compilação Release e instalação local do app. |
 
 O código C em `SoundMix/RealtimeGain.c` faz parte do processamento de áudio por aplicativo e é exposto ao Swift pelo bridging header.
+
+Os controles de reprodução usam o aplicativo Spotify para macOS instalado e aberto. Na primeira utilização, o macOS pode pedir permissão para o Sound Mix controlar o Spotify em **Privacidade e Segurança > Automação**.
 
 ## Instalação local
 

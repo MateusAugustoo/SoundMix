@@ -14,11 +14,13 @@ struct SoundMixApp: App {
     @NSApplicationDelegateAdaptor(SoundMixAppDelegate.self) private var appDelegate
     @AppStorage("appearanceMode") private var appearanceMode = AppearanceMode.system.rawValue
     @StateObject private var mixer = MixerModel()
+    @StateObject private var spotify = SpotifyPlayback()
 
     var body: some Scene {
         MenuBarExtra("Sound Mix", systemImage: "waveform") {
             MenuBarPanel()
                 .environmentObject(mixer)
+                .environmentObject(spotify)
                 .preferredColorScheme(AppearanceMode(rawValue: appearanceMode)?.colorScheme)
         }
         .menuBarExtraStyle(.window)
@@ -26,6 +28,7 @@ struct SoundMixApp: App {
         Window("Sound Mix", id: "main") {
             MainWindowView()
                 .environmentObject(mixer)
+                .environmentObject(spotify)
                 .preferredColorScheme(AppearanceMode(rawValue: appearanceMode)?.colorScheme)
         }
         .windowStyle(.hiddenTitleBar)

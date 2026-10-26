@@ -23,6 +23,7 @@ enum SoundMixPage: String, CaseIterable {
 
 struct MainWindowView: View {
     @EnvironmentObject private var mixer: MixerModel
+    @EnvironmentObject private var spotify: SpotifyPlayback
     @State private var page: SoundMixPage = .overview
     @State private var search = ""
     @State private var editingScene: MixScene?
@@ -54,6 +55,7 @@ struct MainWindowView: View {
             }
         }
         .frame(minWidth: 1040, minHeight: 700)
+        .onAppear { spotify.start() }
         .sheet(item: $editingScene) { scene in
             SceneEditorView(scene: scene, settings: mixer.settings(for: scene))
                 .environmentObject(mixer)
@@ -176,6 +178,10 @@ struct MainWindowView: View {
                 .padding(.horizontal, 11)
                 .padding(.vertical, 8)
                 .softSurface(radius: 16)
+            }
+
+            if spotify.isRunning {
+                SpotifyPlayerCard()
             }
 
             HStack(alignment: .top, spacing: 21) {
